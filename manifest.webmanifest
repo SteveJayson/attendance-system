@@ -1,0 +1,2 @@
+{"name":"Classroom Attendance","short_name":"Attendance","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#e9f1f3","theme_color":"#3f5a66",
+"icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}

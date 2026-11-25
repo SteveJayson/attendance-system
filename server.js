@@ -3,8 +3,15 @@
 // Data is stored locally in attendance-db.json next to this file.
 const http = require("http"), fs = require("fs"), path = require("path");
 const PORT = process.env.PORT || 3000;
-const DB = path.join(__dirname, "attendance-db.json");
+const DB = process.env.DB_PATH || path.join(__dirname, "attendance-db.json");
 const STATUS = ["P", "A", "L", "E"]; // Present, Absent, Late, Excused
+const FILES = {
+  "/index.html": ["index.html", "text/html; charset=utf-8"],
+  "/manifest.webmanifest": ["manifest.webmanifest", "application/manifest+json"],
+  "/sw.js": ["sw.js", "text/javascript"],
+  "/icon-192.png": ["icon-192.png", "image/png"],
+  "/icon-512.png": ["icon-512.png", "image/png"]
+};
 
 let db;
 try { db = JSON.parse(fs.readFileSync(DB, "utf8")); } catch { db = { layout: {}, records: {} }; }
@@ -16,10 +23,12 @@ http.createServer((req, res) => {
   const p = url.pathname;
 
   if (!p.startsWith("/api/")) {
-    return fs.readFile(path.join(__dirname, "index.html"), (err, html) => {
-      if (err) { res.writeHead(404); return res.end("index.html not found"); }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(html);
+    const file = FILES[p === "/" ? "/index.html" : p];
+    if (!file) { res.writeHead(404); return res.end("Not found"); }
+    return fs.readFile(path.join(__dirname, file[0]), (err, data) => {
+      if (err) { res.writeHead(404); return res.end("Not found"); }
+      res.writeHead(200, { "Content-Type": file[1], "Cache-Control": "no-cache" });
+      res.end(data);
     });
   }
 
@@ -58,4 +67,9 @@ http.createServer((req, res) => {
     }
     send(res, 404, { error: "Not found" });
   });
-}).listen(PORT, () => console.log("Attendance running at http://localhost:" + PORT));
+}).listen(PORT, "0.0.0.0", () => {
+  console.log("Attendance running at http://localhost:" + PORT);
+  for (const list of Object.values(require("os").networkInterfaces()))
+    for (const i of list)
+      if (i.family === "IPv4" && !i.internal) console.log("On your Android phone (same Wi-Fi): http://" + i.address + ":" + PORT);
+});
