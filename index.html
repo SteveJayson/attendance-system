@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classroom Attendance</title>
+<style>
+:root{--bg:#e9f1f3;--paper:#fbfdfd;--grid:#cddde2;--ink:#10303a;--muted:#587681;--wall:#3f5a66;--seat:#a9d0db;--seat-line:#5f98a8;--board:#d9ecf1;
+--P-bg:#cdeed6;--P-line:#2c9a55;--P-ink:#0f4a27;--A-bg:#fbd3d3;--A-line:#d23f3f;--A-ink:#7a1616;--L-bg:#fcecb8;--L-line:#d49a05;--L-ink:#64450a;--E-bg:#d6e3fb;--E-line:#3d6bd0;--E-ink:#1b3a85;
+--font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0d1a1f;--paper:#132a32;--grid:#1f3a44;--ink:#e3f1f4;--muted:#94b1ba;--wall:#7da0ad;--seat:#25505e;--seat-line:#4f8a9b;--board:#1b3d48;
+--P-bg:#14472a;--P-line:#4cc07a;--P-ink:#c9f3d9;--A-bg:#531b1b;--A-line:#ef6d6d;--A-ink:#fbd0d0;--L-bg:#5a4207;--L-line:#e8b933;--L-ink:#fbe9b0;--E-bg:#1c3768;--E-line:#7ca0ee;--E-ink:#d3e1fb}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.4}
+button,input{font:inherit;color:inherit}button{cursor:pointer}
+:focus-visible{outline:3px solid var(--E-line);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:16px 14px 0}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between;margin-bottom:12px}
+h1{margin:0;font-size:1.5rem}.where{font-size:.78rem;color:var(--muted);margin-top:2px}
+.fields{display:flex;gap:10px;flex-wrap:wrap}
+label{display:flex;flex-direction:column;font-size:.8rem;color:var(--muted);gap:3px}
+input{background:var(--paper);border:1.5px solid var(--grid);border-radius:10px;padding:9px 11px;min-width:150px}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--paper);border:1.5px solid var(--grid);border-radius:12px;padding:8px 10px;display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.stat b{font-size:1.4rem;font-variant-numeric:tabular-nums}.stat span{font-size:.8rem;color:var(--muted)}
+.stat.P{border-color:var(--P-line)}.stat.A{border-color:var(--A-line)}.stat.L{border-color:var(--L-line)}.stat.E{border-color:var(--E-line)}
+.scroller{overflow-x:auto;border-radius:6px}
+.room{container-type:inline-size;position:relative;min-width:780px;aspect-ratio:1;background:var(--paper);border:6px solid var(--wall);
+background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:28px 28px}
+.board{position:absolute;left:20%;top:2.5%;width:60%;height:7%;display:flex;align-items:center;justify-content:center;font-weight:800;letter-spacing:.04em;background:var(--board);border:3px solid var(--seat-line)}
+.door{position:absolute;top:-6px;right:3%;width:46px;height:6px;background:var(--bg);border:solid var(--wall);border-width:0 3px}
+.back{position:absolute;bottom:.6%;width:100%;text-align:center;font-size:.8rem;font-weight:700;color:var(--muted)}
+#grid{position:absolute;inset:0}
+.seat{position:absolute;width:10%;height:9.5%;padding:4px 2px 10px;border:2px solid var(--seat-line);background:var(--seat);color:var(--ink);border-radius:14px 14px 8px 8px;
+display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;user-select:none;-webkit-tap-highlight-color:transparent}
+.seat::after{content:"";position:absolute;left:22%;right:22%;bottom:3px;height:4px;border-radius:3px;background:currentColor;opacity:.25}
+.nm{font-weight:800;font-size:clamp(8px,1.15cqw,15px);line-height:1.1;overflow-wrap:anywhere}
+.st{font-size:clamp(8px,.95cqw,12px);font-weight:700;min-height:1em}
+.seat[data-s=P]{background:var(--P-bg);border-color:var(--P-line);color:var(--P-ink)}
+.seat[data-s=A]{background:var(--A-bg);border-color:var(--A-line);color:var(--A-ink)}
+.seat[data-s=L]{background:var(--L-bg);border-color:var(--L-line);color:var(--L-ink)}
+.seat[data-s=E]{background:var(--E-bg);border-color:var(--E-line);color:var(--E-ink)}
+body:not(.move) .seat:active{transform:scale(.95)}
+body.move .seat{cursor:grab;touch-action:none;border-style:dashed}
+body.move .seat.drag{cursor:grabbing;z-index:5;box-shadow:0 8px 18px rgba(0,0,0,.3)}
+body.move .room{outline:3px dashed var(--E-line);outline-offset:-6px}
+body.move .markonly,body:not(.move) .moveonly{display:none!important}
+.bar{position:sticky;bottom:0;margin:12px -14px 0;padding:10px 14px;background:var(--paper);border-top:2px solid var(--grid);z-index:8}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.seg button{border:2px solid var(--grid);background:var(--bg);border-radius:12px;padding:10px;font-weight:700}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.brushes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.brush{border:2px solid var(--grid);background:var(--bg);border-radius:12px;padding:11px 4px;font-weight:700;min-height:48px}
+.brush[aria-pressed=true]{border-width:3px}
+.brush.P[aria-pressed=true]{background:var(--P-bg);border-color:var(--P-line);color:var(--P-ink)}
+.brush.A[aria-pressed=true]{background:var(--A-bg);border-color:var(--A-line);color:var(--A-ink)}
+.brush.L[aria-pressed=true]{background:var(--L-bg);border-color:var(--L-line);color:var(--L-ink)}
+.brush.E[aria-pressed=true]{background:var(--E-bg);border-color:var(--E-line);color:var(--E-ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.hint{flex:1;min-width:170px;font-size:.8rem;color:var(--muted)}
+.act{border:1.5px solid var(--grid);background:var(--paper);border-radius:10px;padding:9px 13px;font-weight:600;text-decoration:none;display:inline-block}
+.act.main{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+dialog{border:2px solid var(--grid);border-radius:14px;background:var(--paper);color:var(--ink);width:min(760px,94vw);padding:14px}
+dialog::backdrop{background:rgba(0,0,0,.5)}dialog img{width:100%;border-radius:8px;border:1px solid var(--grid)}
+.toast{position:fixed;left:50%;bottom:170px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:7px 14px;border-radius:20px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.toast.on{opacity:1}
+@media (max-width:720px){.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:6px 8px}input{min-width:0;flex:1}.fields,label{width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>Classroom attendance</h1><div class="where" id="where"></div></div>
+    <div class="fields">
+      <label>Class / subject<input id="section" placeholder="e.g. Grade 10 – Science"></label>
+      <label>Date<input id="date" type="date"></label>
+    </div>
+  </header>
+  <div class="stats" id="stats"></div>
+  <div class="scroller">
+    <div class="room" id="room">
+      <div class="board">WHITEBOARD</div><div class="door"></div>
+      <div id="grid"></div>
+      <div class="back">Back of room</div>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="seg" id="mode">
+      <button data-m="mark" aria-pressed="true">Mark attendance</button>
+      <button data-m="move" aria-pressed="false">Move chairs</button>
+    </div>
+    <div class="brushes markonly" id="brushes"></div>
+    <div class="row">
+      <span class="hint markonly">Pick a status, then tap seats. Tap a marked seat again to clear it.</span>
+      <span class="hint moveonly">Drag a chair to a new spot. The name moves with it. Positions save automatically.</span>
+      <button class="act markonly" id="allP">All present</button>
+      <button class="act markonly" id="clear">Clear all</button>
+      <button class="act moveonly" id="reset">Reset chairs</button>
+      <button class="act main" id="png">Download PNG</button>
+    </div>
+  </div>
+</div>
+<dialog id="dlg">
+  <img id="prev" alt="Attendance chart preview">
+  <div class="row" style="justify-content:flex-end">
+    <span class="hint">If the download doesn’t start, press and hold or right-click the image to save it.</span>
+    <a class="act main" id="dl" download>Download PNG</a>
+    <button class="act" id="close">Close</button>
+  </div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const NAMES="AMORA,ARANTE,ATIS,AUSTRAL,BATAUSA,BENOCILLA,BORELA,CAAYA,CABALLERO,CADION,CALO,CAMPOREDONDO,CAMPOS,CAÑETE,COSTELO,CUEVAS,CUIZON,DE JESUS,DULAOGON,EQUIPAJE,ESPACIO,ESQUERRA,FLORES,FRANCISCO,FUENTES,GANAL,GARING,GERONA,GIONSON,GUARIN,GUDIN,INJOG,JAMITO,JASIS,LARAN,LARGO,LECHUGAS,LIBRES,LIMPAHAN,LIPARDO,MABOLOC,MALOT,MURILLO,OMBID,PANTALEON,SABATIN,SAPID,SAYA-ANG,SIMPAS,SISON,SOLANGOY,SUBAYNO,VERAQUE".split(",");
+const ST={P:"Present",A:"Absent",L:"Late",E:"Excused"}, SW=10, SH=9.5, LS="attendance-v1";
+const $=id=>document.getElementById(id), pad=n=>String(n).padStart(2,"0"), t=new Date();
+const cur={date:`${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`,brush:"P",mode:"mark"};
+let db={layout:{},records:{}}, online=false;
+
+// ---- storage: server database if running via server.js, otherwise this browser ----
+function localLoad(){try{return JSON.parse(localStorage.getItem(LS))||db}catch(e){return db}}
+async function boot(){
+  try{const r=await fetch("/api/state");if(r.ok){db=await r.json();online=true}}catch(e){}
+  if(!online)db=localLoad();
+  db.layout=db.layout||{};db.records=db.records||{};
+  $("where").textContent=online?"Saved to the local database (attendance-db.json)":"Saved in this browser";
+}
+function rec(){return db.records[cur.date]||(db.records[cur.date]={section:"",marks:{}})}
+let tt;function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>e.classList.remove("on"),900)}
+function persist(what){
+  try{localStorage.setItem(LS,JSON.stringify(db))}catch(e){toast("Couldn’t save on this device");return}
+  if(online){
+    const [u,b]=what==="layout"?["/api/layout",{layout:db.layout}]:["/api/attendance/"+cur.date,rec()];
+    fetch(u,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).catch(()=>toast("Server not reachable"));
+  }
+  toast("Saved");
+}
+
+// ---- seats ----
+function defPos(i){const r=Math.floor(i/8),c=i%8;return{x:2.6+(c+(r===6?1.5:0))*12.1,y:15+r*12.4}}
+function pos(n){return db.layout[n]||defPos(NAMES.indexOf(n))}
+function place(b){const p=pos(b.dataset.n);b.style.left=p.x+"%";b.style.top=p.y+"%"}
+function counts(){const c={P:0,A:0,L:0,E:0},m=rec().marks;NAMES.forEach(n=>m[n]&&c[m[n]]++);c.U=NAMES.length-c.P-c.A-c.L-c.E;return c}
+function render(){
+  const g=$("grid");
+  if(!g.children.length)NAMES.forEach(n=>{const b=document.createElement("button");b.className="seat";b.dataset.n=n;
+    b.innerHTML=`<span class="nm">${n}</span><span class="st"></span>`;g.appendChild(b)});
+  const m=rec().marks;
+  [...g.children].forEach(b=>{const s=m[b.dataset.n];place(b);
+    s?b.dataset.s=s:delete b.dataset.s;b.querySelector(".st").textContent=s?ST[s]:"";
+    b.setAttribute("aria-label",`${b.dataset.n}: ${s?ST[s]:"not marked"}`)});
+  const c=counts();
+  $("stats").innerHTML=Object.keys(ST).map(k=>`<div class="stat ${k}"><span>${ST[k]}</span><b>${c[k]}</b></div>`).join("")+`<div class="stat"><span>Unmarked</span><b>${c.U}</b></div>`;
+  $("brushes").innerHTML=Object.keys(ST).map(k=>`<button class="brush ${k}" data-k="${k}" aria-pressed="${cur.brush===k}">${ST[k]}</button>`).join("");
+}
+$("grid").addEventListener("click",e=>{
+  if(cur.mode!=="mark")return;const b=e.target.closest(".seat");if(!b)return;
+  const n=b.dataset.n,m=rec().marks;m[n]===cur.brush?delete m[n]:m[n]=cur.brush;render();persist("att");
+});
+$("brushes").addEventListener("click",e=>{const b=e.target.closest(".brush");if(b){cur.brush=b.dataset.k;render()}});
+$("mode").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;cur.mode=b.dataset.m;
+  document.body.classList.toggle("move",cur.mode==="move");
+  [...$("mode").children].forEach(x=>x.setAttribute("aria-pressed",x===b))});
+
+// ---- dragging chairs ----
+let drag=null;
+$("grid").addEventListener("pointerdown",e=>{
+  if(cur.mode!=="move")return;const b=e.target.closest(".seat");if(!b)return;
+  const br=b.getBoundingClientRect();
+  drag={b,dx:e.clientX-br.left,dy:e.clientY-br.top,rr:$("room").getBoundingClientRect()};
+  b.setPointerCapture(e.pointerId);b.classList.add("drag");e.preventDefault();
+});
+$("grid").addEventListener("pointermove",e=>{
+  if(!drag)return;const{b,dx,dy,rr}=drag,cl=(v,mx)=>Math.max(0,Math.min(mx,Math.round(v*2)/2));
+  db.layout[b.dataset.n]={x:cl((e.clientX-dx-rr.left)/rr.width*100,100-SW),y:cl((e.clientY-dy-rr.top)/rr.height*100,100-SH)};place(b);
+});
+const endDrag=()=>{if(!drag)return;drag.b.classList.remove("drag");drag=null;persist("layout")};
+$("grid").addEventListener("pointerup",endDrag);$("grid").addEventListener("pointercancel",endDrag);
+
+// ---- buttons ----
+function confirmTap(btn,label,fn){
+  if(btn.dataset.arm){clearTimeout(+btn.dataset.arm);btn.textContent=btn.dataset.label;delete btn.dataset.arm;return fn()}
+  btn.dataset.label=btn.textContent;btn.textContent=label;
+  btn.dataset.arm=setTimeout(()=>{btn.textContent=btn.dataset.label;delete btn.dataset.arm},3000);
+}
+$("allP").onclick=()=>{const m=rec().marks;NAMES.forEach(n=>{if(!m[n])m[n]="P"});render();persist("att")};
+$("clear").onclick=e=>confirmTap(e.target,"Tap again to clear",()=>{rec().marks={};render();persist("att")});
+$("reset").onclick=e=>confirmTap(e.target,"Tap again to reset",()=>{db.layout={};render();persist("layout")});
+$("date").onchange=e=>{if(!e.target.value)return;cur.date=e.target.value;$("section").value=rec().section;render()};
+$("section").oninput=e=>{rec().section=e.target.value;persist("att")};
+$("close").onclick=()=>$("dlg").close();
+
+// ---- PNG export (drawn on a canvas, no libraries) ----
+const FONT='"Segoe UI",system-ui,Arial,sans-serif';
+const COL={P:["#cdeed6","#2c9a55","#0f4a27"],A:["#fbd3d3","#d23f3f","#7a1616"],L:["#fcecb8","#d49a05","#64450a"],E:["#d6e3fb","#3d6bd0","#1b3a85"],U:["#a9d0db","#5f98a8","#10303a"]};
+function wrap(x,text,max){const out=[];let l="";for(const w of text.split(" ")){const s=l?l+" "+w:w;if(x.measureText(s).width>max&&l){out.push(l);l=w}else l=s}if(l)out.push(l);return out}
+function makePNG(){
+  const W=1600,top=190,c=counts(),m=rec().marks;
+  const probe=document.createElement("canvas").getContext("2d");probe.font="28px "+FONT;
+  const blocks=[["Absent","A"],["Late","L"],["Excused","E"]].map(([l,k])=>{const a=NAMES.filter(n=>m[n]===k);return a.length?wrap(probe,`${l} (${a.length}): ${a.join(", ")}`,W-100):null}).filter(Boolean);
+  const foot=blocks.length?blocks.reduce((s,b)=>s+b.length*40,0)+50:30;
+  const cv=document.createElement("canvas");cv.width=W;cv.height=top+W+foot;
+  const x=cv.getContext("2d");
+  x.fillStyle="#fff";x.fillRect(0,0,cv.width,cv.height);
+  x.fillStyle="#10303a";x.font="800 46px "+FONT;x.textBaseline="alphabetic";
+  x.fillText(`${rec().section||"Class attendance"}  –  ${cur.date}`,50,70);
+  [["Present","P"],["Absent","A"],["Late","L"],["Excused","E"],["Unmarked","U"]].forEach(([l,k],i)=>{
+    const cx=50+i*300;x.fillStyle=COL[k][0];x.strokeStyle=COL[k][1];x.lineWidth=4;x.beginPath();x.roundRect(cx,100,280,62,14);x.fill();x.stroke();
+    x.fillStyle=COL[k][2];x.font="700 28px "+FONT;x.fillText(`${l}: ${c[k]}`,cx+20,141);
+  });
+  x.save();x.translate(0,top);
+  x.strokeStyle="#cddde2";x.lineWidth=1;for(let i=0;i<=W;i+=50){x.beginPath();x.moveTo(i,0);x.lineTo(i,W);x.moveTo(0,i);x.lineTo(W,i);x.stroke()}
+  x.strokeStyle="#3f5a66";x.lineWidth=14;x.strokeRect(7,7,W-14,W-14);
+  x.fillStyle="#d9ecf1";x.strokeStyle="#5f98a8";x.lineWidth=5;x.beginPath();x.rect(W*.2,W*.025,W*.6,W*.07);x.fill();x.stroke();
+  x.fillStyle="#10303a";x.font="800 44px "+FONT;x.textAlign="center";x.fillText("WHITEBOARD",W/2,W*.025+W*.07/2+15);
+  NAMES.forEach(n=>{
+    const p=pos(n),s=m[n]||"U",sx=p.x/100*W,sy=p.y/100*W,sw=W*SW/100,sh=W*SH/100;
+    x.fillStyle=COL[s][0];x.strokeStyle=COL[s][1];x.lineWidth=5;x.beginPath();x.roundRect(sx,sy,sw,sh,[22,22,12,12]);x.fill();x.stroke();
+    x.fillStyle=COL[s][2];x.globalAlpha=.25;x.fillRect(sx+sw*.22,sy+sh-14,sw*.56,7);x.globalAlpha=1;
+    let fs=30;x.font=`800 ${fs}px ${FONT}`;while(x.measureText(n).width>sw-14&&fs>14){fs-=2;x.font=`800 ${fs}px ${FONT}`}
+    x.fillText(n,sx+sw/2,sy+sh/2-(m[n]?2:-8));
+    if(m[n]){x.font="700 21px "+FONT;x.fillText(ST[m[n]],sx+sw/2,sy+sh/2+28)}
+  });
+  x.restore();x.textAlign="left";x.fillStyle="#10303a";x.font="28px "+FONT;
+  let y=top+W+42;blocks.forEach(b=>b.forEach(l=>{x.fillText(l,50,y);y+=40}));
+  return cv.toDataURL("image/png");
+}
+$("png").onclick=()=>{
+  const url=makePNG();$("prev").src=url;
+  const a=$("dl");a.href=url;a.download=`attendance-${cur.date}.png`;$("dlg").showModal();
+};
+
+boot().then(()=>{$("date").value=cur.date;$("section").value=rec().section;render()});
+</script>
+</body>
+</html>
