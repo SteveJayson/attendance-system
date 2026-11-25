@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Classroom Attendance</title>
+<style>
+:root{
+  --bg:#e9f1f3;--paper:#fbfdfd;--grid:#cddde2;--ink:#10303a;--muted:#587681;--wall:#3f5a66;
+  --seat:#a9d0db;--seat-line:#5f98a8;--board:#d9ecf1;
+  --P-bg:#cdeed6;--P-line:#2c9a55;--P-ink:#0f4a27;
+  --A-bg:#fbd3d3;--A-line:#d23f3f;--A-ink:#7a1616;
+  --L-bg:#fcecb8;--L-line:#d49a05;--L-ink:#64450a;
+  --E-bg:#d6e3fb;--E-line:#3d6bd0;--E-ink:#1b3a85;
+  --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#0d1a1f;--paper:#132a32;--grid:#1f3a44;--ink:#e3f1f4;--muted:#94b1ba;--wall:#7da0ad;
+  --seat:#25505e;--seat-line:#4f8a9b;--board:#1b3d48;
+  --P-bg:#14472a;--P-line:#4cc07a;--P-ink:#c9f3d9;--A-bg:#531b1b;--A-line:#ef6d6d;--A-ink:#fbd0d0;
+  --L-bg:#5a4207;--L-line:#e8b933;--L-ink:#fbe9b0;--E-bg:#1c3768;--E-line:#7ca0ee;--E-ink:#d3e1fb;}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#0d1a1f;--paper:#132a32;--grid:#1f3a44;--ink:#e3f1f4;--muted:#94b1ba;--wall:#7da0ad;
+  --seat:#25505e;--seat-line:#4f8a9b;--board:#1b3d48;
+  --P-bg:#14472a;--P-line:#4cc07a;--P-ink:#c9f3d9;--A-bg:#531b1b;--A-line:#ef6d6d;--A-ink:#fbd0d0;
+  --L-bg:#5a4207;--L-line:#e8b933;--L-ink:#fbe9b0;--E-bg:#1c3768;--E-line:#7ca0ee;--E-ink:#d3e1fb;}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.4}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--E-line);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:16px 14px 0}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between;margin-bottom:14px}
+h1{margin:0;font-size:1.5rem;letter-spacing:-.01em}
+.fields{display:flex;gap:10px;flex-wrap:wrap}
+label{display:flex;flex-direction:column;font-size:.8rem;color:var(--muted);gap:3px}
+input{background:var(--paper);border:1.5px solid var(--grid);border-radius:10px;padding:9px 11px;min-width:150px}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--paper);border:1.5px solid var(--grid);border-radius:12px;padding:8px 10px;display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.stat b{font-size:1.45rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:.8rem;color:var(--muted)}
+.stat.P{border-color:var(--P-line)}.stat.A{border-color:var(--A-line)}.stat.L{border-color:var(--L-line)}.stat.E{border-color:var(--E-line)}
+.room{position:relative;background:var(--paper);border:6px solid var(--wall);border-radius:6px;padding:18px 14px 16px;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:28px 28px}
+.board{width:min(60%,520px);margin:0 auto 22px;text-align:center;font-weight:800;letter-spacing:.04em;padding:10px;background:var(--board);
+  border:3px solid var(--seat-line);clip-path:polygon(4% 0,96% 0,100% 100%,0 100%)}
+.door{position:absolute;top:-6px;right:14px;width:46px;height:8px;background:var(--bg);border-left:3px solid var(--wall);border-right:3px solid var(--wall)}
+.door::after{content:"Door";position:absolute;top:12px;right:-6px;font-size:.7rem;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(8,1fr);gap:12px 10px}
+.grid .seat:nth-child(49){grid-column-start:2}
+.seat{position:relative;min-height:84px;padding:8px 4px 14px;border:2px solid var(--seat-line);background:var(--seat);color:var(--ink);
+  border-radius:16px 16px 10px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  text-align:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s}
+.seat::after{content:"";position:absolute;left:22%;right:22%;bottom:4px;height:5px;border-radius:4px;background:currentColor;opacity:.25}
+.seat:active{transform:scale(.95)}
+.seat .n{font-size:.68rem;opacity:.7}
+.seat .nm{font-weight:800;font-size:clamp(.62rem,1.25vw,.86rem);line-height:1.1;overflow-wrap:anywhere}
+.seat .st{font-size:.68rem;font-weight:700;min-height:1em}
+.seat[data-s="P"]{background:var(--P-bg);border-color:var(--P-line);color:var(--P-ink)}
+.seat[data-s="A"]{background:var(--A-bg);border-color:var(--A-line);color:var(--A-ink)}
+.seat[data-s="L"]{background:var(--L-bg);border-color:var(--L-line);color:var(--L-ink)}
+.seat[data-s="E"]{background:var(--E-bg);border-color:var(--E-line);color:var(--E-ink)}
+.front{margin-top:16px;text-align:center;font-weight:700;font-size:.85rem;color:var(--muted)}
+.bar{position:sticky;bottom:0;margin:14px -14px 0;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:var(--paper);border-top:2px solid var(--grid);z-index:5}
+.brushes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.brush{border:2px solid var(--grid);background:var(--bg);border-radius:12px;padding:11px 4px;font-weight:700;min-height:48px}
+.brush[aria-pressed="true"]{border-width:3px;box-shadow:0 0 0 2px var(--paper) inset}
+.brush.P[aria-pressed="true"]{background:var(--P-bg);border-color:var(--P-line);color:var(--P-ink)}
+.brush.A[aria-pressed="true"]{background:var(--A-bg);border-color:var(--A-line);color:var(--A-ink)}
+.brush.L[aria-pressed="true"]{background:var(--L-bg);border-color:var(--L-line);color:var(--L-ink)}
+.brush.E[aria-pressed="true"]{background:var(--E-bg);border-color:var(--E-line);color:var(--E-ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.row .hint{flex:1;min-width:180px;font-size:.8rem;color:var(--muted)}
+.act{border:1.5px solid var(--grid);background:var(--paper);border-radius:10px;padding:9px 13px;font-weight:600}
+.act.main{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+dialog{border:2px solid var(--grid);border-radius:14px;background:var(--paper);color:var(--ink);width:min(520px,92vw);padding:16px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+textarea{width:100%;height:240px;background:var(--bg);color:var(--ink);border:1.5px solid var(--grid);border-radius:10px;padding:10px;font:.85rem/1.4 ui-monospace,Consolas,monospace}
+.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);
+  padding:7px 14px;border-radius:20px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.toast.on{opacity:1}
+@media (max-width:720px){
+  .grid{grid-template-columns:repeat(4,1fr);gap:10px 8px}
+  .grid .seat:nth-child(49){grid-column-start:auto}
+  .grid .seat:nth-child(53){grid-column-start:2}
+  .seat .nm{font-size:.7rem}.stats{grid-template-columns:repeat(5,1fr)}
+  .stat{flex-direction:column;align-items:flex-start;gap:0;padding:6px 8px}.stat b{font-size:1.2rem}
+  .board{width:80%}input{min-width:0;flex:1}.fields,label{width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Classroom attendance</h1>
+    <div class="fields">
+      <label>Class / subject<input id="section" placeholder="e.g. Grade 10 – Science"></label>
+      <label>Date<input id="date" type="date"></label>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="room">
+    <div class="door"></div>
+    <div class="board">WHITEBOARD</div>
+    <div class="grid" id="grid"></div>
+    <div class="front">Back of room</div>
+  </div>
+
+  <div class="bar">
+    <div class="brushes" id="brushes"></div>
+    <div class="row">
+      <span class="hint">Pick a status, then tap seats. Tap a marked seat again to clear it.</span>
+      <button class="act" id="allP">All present</button>
+      <button class="act" id="clear">Clear all</button>
+      <button class="act main" id="report">View report</button>
+    </div>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <h2 style="margin:0 0 10px;font-size:1.1rem">Attendance report</h2>
+  <textarea id="rep" readonly></textarea>
+  <div class="row" style="justify-content:flex-end">
+    <button class="act" id="copy">Copy report</button>
+    <button class="act main" id="close">Close</button>
+  </div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const NAMES="AMORA,ARANTE,ATIS,AUSTRAL,BATAUSA,BENOCILLA,BORELA,CAAYA,CABALLERO,CADION,CALO,CAMPOREDONDO,CAMPOS,CAÑETE,COSTELO,CUEVAS,CUIZON,DE JESUS,DULAOGON,EQUIPAJE,ESPACIO,ESQUERRA,FLORES,FRANCISCO,FUENTES,GANAL,GARING,GERONA,GIONSON,GUARIN,GUDIN,INJOG,JAMITO,JASIS,LARAN,LARGO,LECHUGAS,LIBRES,LIMPAHAN,LIPARDO,MABOLOC,MALOT,MURILLO,OMBID,PANTALEON,SABATIN,SAPID,SAYA-ANG,SIMPAS,SISON,SOLANGOY,SUBAYNO,VERAQUE".split(",");
+const ST={P:"Present",A:"Absent",L:"Late",E:"Excused"};
+// Storage layer: swap these two functions for fetch() calls once the backend exists.
+const store={
+  load(d){try{return JSON.parse(localStorage.getItem("att:"+d))||null}catch(e){return null}},
+  save(d,v){try{localStorage.setItem("att:"+d,JSON.stringify(v));return true}catch(e){return false}}
+};
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,"0");
+const t=new Date();
+let state={date:`${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`,section:"",marks:{},brush:"P"};
+
+function load(){
+  const r=store.load(state.date);
+  state.marks=r?r.marks||{}:{};
+  state.section=r?r.section||"":state.section;
+  $("section").value=state.section;
+}
+function persist(){
+  const ok=store.save(state.date,{section:state.section,marks:state.marks});
+  toast(ok?"Saved":"Couldn’t save on this device");
+}
+let tt;function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>e.classList.remove("on"),900)}
+
+function counts(){
+  const c={P:0,A:0,L:0,E:0};
+  NAMES.forEach(n=>{const s=state.marks[n];if(s)c[s]++});
+  c.U=NAMES.length-c.P-c.A-c.L-c.E;return c;
+}
+function render(){
+  const g=$("grid");
+  if(!g.children.length){
+    NAMES.forEach((n,i)=>{
+      const b=document.createElement("button");
+      b.className="seat";b.dataset.n=n;
+      b.innerHTML=`<span class="n">${i+1}</span><span class="nm">${n}</span><span class="st"></span>`;
+      g.appendChild(b);
+    });
+  }
+  [...g.children].forEach(b=>{
+    const s=state.marks[b.dataset.n];
+    if(s)b.dataset.s=s;else delete b.dataset.s;
+    b.querySelector(".st").textContent=s?ST[s]:"";
+    b.setAttribute("aria-label",`${b.dataset.n}: ${s?ST[s]:"not marked"}`);
+  });
+  const c=counts();
+  $("stats").innerHTML=["P","A","L","E"].map(k=>`<div class="stat ${k}"><span>${ST[k]}</span><b>${c[k]}</b></div>`).join("")+
+    `<div class="stat"><span>Unmarked</span><b>${c.U}</b></div>`;
+  $("brushes").innerHTML=Object.keys(ST).map(k=>`<button class="brush ${k}" data-k="${k}" aria-pressed="${state.brush===k}">${ST[k]}</button>`).join("");
+}
+$("grid").addEventListener("click",e=>{
+  const b=e.target.closest(".seat");if(!b)return;
+  const n=b.dataset.n;
+  if(state.marks[n]===state.brush)delete state.marks[n];else state.marks[n]=state.brush;
+  render();persist();
+});
+$("brushes").addEventListener("click",e=>{
+  const b=e.target.closest(".brush");if(!b)return;
+  state.brush=b.dataset.k;render();
+});
+$("allP").onclick=()=>{
+  NAMES.forEach(n=>{if(!state.marks[n])state.marks[n]="P"});
+  render();persist();
+};
+$("clear").onclick=()=>{
+  if(!Object.keys(state.marks).length)return;
+  if(confirm("Clear all marks for this date?")){state.marks={};render();persist()}
+};
+$("date").onchange=e=>{if(!e.target.value)return;state.date=e.target.value;load();render()};
+$("section").oninput=e=>{state.section=e.target.value;store.save(state.date,{section:state.section,marks:state.marks})};
+
+function report(){
+  const c=counts(),list=k=>NAMES.filter(n=>state.marks[n]===k);
+  const rate=Math.round((c.P+c.L)/NAMES.length*100);
+  let s=`${state.section||"Class"} – ${state.date}\n`;
+  s+=`Present ${c.P} · Late ${c.L} · Excused ${c.E} · Absent ${c.A} · Unmarked ${c.U}\nAttendance rate: ${rate}%\n`;
+  [["A","Absent"],["L","Late"],["E","Excused"]].forEach(([k,l])=>{const x=list(k);if(x.length)s+=`\n${l}: ${x.join(", ")}`});
+  const u=NAMES.filter(n=>!state.marks[n]);if(u.length)s+=`\n\nNot yet marked: ${u.join(", ")}`;
+  return s;
+}
+$("report").onclick=()=>{$("rep").value=report();$("dlg").showModal()};
+$("close").onclick=()=>$("dlg").close();
+$("copy").onclick=async()=>{
+  try{await navigator.clipboard.writeText($("rep").value);toast("Copied")}
+  catch(e){$("rep").select();toast("Press Ctrl+C to copy")}
+};
+
+$("date").value=state.date;
+load();render();
+</script>
+</body>
+</html>
