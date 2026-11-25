@@ -68,16 +68,7 @@ http.createServer((req, res) => {
         for (const key of ["roster", "marked", "exported"]) {
           if (typeof rawSteps[key] === "boolean") steps[key] = rawSteps[key];
         }
-        const students = {};
-        if (data.checklist?.students && typeof data.checklist.students === "object") {
-          for (const [name, checked] of Object.entries(data.checklist.students)) {
-            if (typeof checked === "boolean") students[String(name).slice(0, 100)] = checked;
-          }
-        }
-        const checklist = {
-          steps,
-          students
-        };
+        const checklist = { steps };
         db.records[date] = { section: String(data.section || "").slice(0, 100), marks, checklist };
         save();
         return send(res, 200, { ok: true });

@@ -1,5 +1,5 @@
 // Network first (so updates arrive), falls back to the cached app when offline.
-const C = "attendance-v1";
+const C = "attendance-v2";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", e => e.waitUntil(caches.open(C).then(c => c.addAll(APP)).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x)))).then(() => self.clients.claim())));

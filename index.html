@@ -36,10 +36,15 @@ input{background:var(--paper);border:1.5px solid var(--grid);border-radius:10px;
 .setup-list{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .check-item{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--grid);border-radius:10px;padding:9px 10px;color:var(--ink)!important;font-size:.85rem!important;cursor:pointer}
 .check-item input{min-width:18px;width:18px;height:18px;accent-color:var(--P-line)}
-.student-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.student-check{margin:0}
-.student-check input:disabled{cursor:not-allowed}
-.student-check.is-present{border-color:var(--P-line);background:var(--P-bg);color:var(--P-ink)!important}
+.student-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.student-check{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg);border:1.5px solid var(--grid);border-radius:10px;padding:7px 8px;min-width:0}
+.student-name{font-size:.82rem;font-weight:700;overflow-wrap:anywhere}
+.status-actions{display:flex;gap:3px;flex-shrink:0}
+.status-actions button{width:34px;height:34px;padding:0;border:1.5px solid var(--grid);border-radius:8px;background:var(--paper);font-size:.75rem;font-weight:800}
+.status-actions button[aria-pressed=true].P{background:var(--P-bg);border-color:var(--P-line);color:var(--P-ink)}
+.status-actions button[aria-pressed=true].A{background:var(--A-bg);border-color:var(--A-line);color:var(--A-ink)}
+.status-actions button[aria-pressed=true].L{background:var(--L-bg);border-color:var(--L-line);color:var(--L-ink)}
+.status-actions button[aria-pressed=true].E{background:var(--E-bg);border-color:var(--E-line);color:var(--E-ink)}
 [hidden]{display:none!important}
 .scroller{overflow-x:auto;border-radius:6px;overscroll-behavior-x:contain}
 .zoom{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-bottom:6px;font-size:.8rem;color:var(--muted)}
@@ -85,7 +90,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}dialog img{width:100%;border-radius:8
 .toast{position:fixed;left:50%;bottom:170px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:7px 14px;border-radius:20px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
 .toast.on{opacity:1}
 @media (max-width:720px){.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:6px 8px}input{min-width:0;flex:1}.fields,label{width:100%}
-.setup-list{grid-template-columns:1fr}.student-list{grid-template-columns:repeat(2,minmax(0,1fr))}.checklist-toggle{width:100%}
+.setup-list{grid-template-columns:1fr}.student-list{grid-template-columns:1fr}.checklist-toggle{width:100%}
 .hint{display:none}.bar{margin-top:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px))}.seg button{padding:8px}.brush{min-height:44px;padding:8px 2px}.act{padding:8px 10px;font-size:.85rem}.row{margin-top:6px}.toast{bottom:150px}}
 </style>
 </head>
@@ -167,17 +172,20 @@ async function boot(){
 function rec(){return db.records[cur.date]||(db.records[cur.date]={section:"",marks:{}})}
 function checklistState(){
   const r=rec();
-  r.checklist=r.checklist||{steps:{},students:{}};
+  r.checklist=r.checklist||{steps:{}};
   r.checklist.steps=r.checklist.steps||{};
-  r.checklist.students=r.checklist.students||{};
   return r.checklist;
 }
 let tt;function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>e.classList.remove("on"),900)}
+let saveQueue=Promise.resolve();
 function persist(what){
   try{localStorage.setItem(LS,JSON.stringify(db))}catch(e){toast("Couldn’t save on this device");return}
   if(online){
     const [u,b]=what==="layout"?["/api/layout",{layout:db.layout,removed:db.removed}]:["/api/attendance/"+cur.date,rec()];
-    fetch(u,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).catch(()=>toast("Server not reachable"));
+    const body=JSON.stringify(b);
+    saveQueue=saveQueue.then(()=>fetch(u,{method:"PUT",headers:{"Content-Type":"application/json"},body}))
+      .then(r=>{if(!r.ok)throw new Error("Save failed")})
+      .catch(()=>toast("Server not reachable"));
   }
   toast("Saved");
 }
@@ -193,21 +201,15 @@ function renderChecklist(){
   [...$("setupList").querySelectorAll("[data-step]")].forEach(input=>{
     input.checked=Boolean(check.steps[input.dataset.step]);
   });
-  $("studentList").innerHTML=names.map(name=>{
-    const present=m[name]==="P";
-    return `<label class="check-item student-check${present?" is-present":""}">
-      <input type="checkbox" data-student="${name}"${present?" checked":""}>
-      ${name}
-    </label>`;
-  }).join("");
-  const checked=names.filter(name=>m[name]==="P").length;
-  $("checklistProgress").textContent=`${checked} of ${names.length} present`;
-  const complete=Object.values(check.steps).filter(Boolean).length;
-  check.steps.marked=names.length>0&&names.every(name=>Boolean(m[name]));
-  [...$("setupList").querySelectorAll('[data-step="marked"]')].forEach(input=>input.checked=check.steps.marked);
-  if(complete!==Object.values(check.steps).filter(Boolean).length){
-    persist("att");
-  }
+  $("studentList").innerHTML=names.map(name=>`<div class="student-check">
+    <span class="student-name">${name}</span>
+    <div class="status-actions" aria-label="${name} attendance status">
+      ${Object.entries(ST).map(([status,label])=>`<button type="button" class="${status}" data-student="${name}" data-status="${status}" aria-label="${name}: ${label}" title="${label}" aria-pressed="${m[name]===status}">${status}</button>`).join("")}
+    </div>
+  </div>`).join("");
+  const marked=names.filter(name=>Boolean(m[name])).length;
+  const totals=Object.entries(ST).map(([status,label])=>`${label}: ${names.filter(name=>m[name]===status).length}`).join(" · ");
+  $("checklistProgress").textContent=`${marked} of ${names.length} marked · ${totals}`;
 }
 function render(){
   const g=$("grid");
@@ -254,13 +256,12 @@ $("setupList").addEventListener("change",e=>{
   checklistState().steps[input.dataset.step]=input.checked;
   persist("att");
 });
-$("studentList").addEventListener("change",e=>{
-  const input=e.target.closest("[data-student]");
-  if(!input)return;
-  const m=rec().marks;
-  checklistState().students[input.dataset.student]=input.checked;
-  if(input.checked)m[input.dataset.student]="P";
-  else if(m[input.dataset.student]==="P")delete m[input.dataset.student];
+$("studentList").addEventListener("click",e=>{
+  const button=e.target.closest("button[data-student][data-status]");
+  if(!button)return;
+  const m=rec().marks,name=button.dataset.student,status=button.dataset.status;
+  if(m[name]===status)delete m[name];
+  else m[name]=status;
   render();persist("att");
 });
 $("mode").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;cur.mode=b.dataset.m;
