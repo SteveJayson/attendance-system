@@ -28,6 +28,18 @@ input{background:var(--paper);border:1.5px solid var(--grid);border-radius:10px;
 .stat{background:var(--paper);border:1.5px solid var(--grid);border-radius:12px;padding:8px 10px;display:flex;justify-content:space-between;align-items:baseline;gap:6px}
 .stat b{font-size:1.4rem;font-variant-numeric:tabular-nums}.stat span{font-size:.8rem;color:var(--muted)}
 .stat.P{border-color:var(--P-line)}.stat.A{border-color:var(--A-line)}.stat.L{border-color:var(--L-line)}.stat.E{border-color:var(--E-line)}
+.checklist-toggle{align-self:end}
+.checklist{background:var(--paper);border:1.5px solid var(--grid);border-radius:12px;margin-bottom:12px;padding:12px}
+.checklist-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+.checklist-head h2{margin:0;font-size:1.05rem}
+.checklist-progress{color:var(--muted);font-size:.82rem}
+.setup-list{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.check-item{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--grid);border-radius:10px;padding:9px 10px;color:var(--ink)!important;font-size:.85rem!important;cursor:pointer}
+.check-item input{min-width:18px;width:18px;height:18px;accent-color:var(--P-line)}
+.student-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.student-check{margin:0}
+.student-check input:disabled{cursor:not-allowed}
+.student-check.is-present{border-color:var(--P-line);background:var(--P-bg);color:var(--P-ink)!important}
 [hidden]{display:none!important}
 .scroller{overflow-x:auto;border-radius:6px;overscroll-behavior-x:contain}
 .zoom{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-bottom:6px;font-size:.8rem;color:var(--muted)}
@@ -73,6 +85,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}dialog img{width:100%;border-radius:8
 .toast{position:fixed;left:50%;bottom:170px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:7px 14px;border-radius:20px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
 .toast.on{opacity:1}
 @media (max-width:720px){.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:6px 8px}input{min-width:0;flex:1}.fields,label{width:100%}
+.setup-list{grid-template-columns:1fr}.student-list{grid-template-columns:repeat(2,minmax(0,1fr))}.checklist-toggle{width:100%}
 .hint{display:none}.bar{margin-top:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px))}.seg button{padding:8px}.brush{min-height:44px;padding:8px 2px}.act{padding:8px 10px;font-size:.85rem}.row{margin-top:6px}.toast{bottom:150px}}
 </style>
 </head>
@@ -83,9 +96,22 @@ dialog::backdrop{background:rgba(0,0,0,.5)}dialog img{width:100%;border-radius:8
     <div class="fields">
       <label>Class / subject<input id="section" placeholder="e.g. Grade 10 – Science"></label>
       <label>Date<input id="date" type="date"></label>
+      <button class="act checklist-toggle" id="checklistToggle" aria-expanded="false">Open checklist</button>
     </div>
   </header>
   <div class="stats" id="stats"></div>
+  <section class="checklist" id="checklist" hidden aria-label="Attendance checklist">
+    <div class="checklist-head">
+      <h2>Attendance checklist</h2>
+      <span class="checklist-progress" id="checklistProgress"></span>
+    </div>
+    <div class="setup-list" id="setupList">
+      <label class="check-item"><input type="checkbox" data-step="roster">Review active roster</label>
+      <label class="check-item"><input type="checkbox" data-step="marked">Mark every student</label>
+      <label class="check-item"><input type="checkbox" data-step="exported">Download attendance PNG</label>
+    </div>
+    <div class="student-list" id="studentList"></div>
+  </section>
   <div class="zoom"><span>Zoom</span><button id="zo" aria-label="Zoom out">−</button><button id="zf">Fit</button><button id="zi" aria-label="Zoom in">+</button></div>
   <div class="scroller" id="scroller">
     <div class="room" id="room">
@@ -139,6 +165,13 @@ async function boot(){
   $("where").textContent=online?"Saved to the local database (attendance-db.json)":"Saved in this browser";
 }
 function rec(){return db.records[cur.date]||(db.records[cur.date]={section:"",marks:{}})}
+function checklistState(){
+  const r=rec();
+  r.checklist=r.checklist||{steps:{},students:{}};
+  r.checklist.steps=r.checklist.steps||{};
+  r.checklist.students=r.checklist.students||{};
+  return r.checklist;
+}
 let tt;function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>e.classList.remove("on"),900)}
 function persist(what){
   try{localStorage.setItem(LS,JSON.stringify(db))}catch(e){toast("Couldn’t save on this device");return}
@@ -155,6 +188,27 @@ function defPos(i){const r=Math.floor(i/8),c=i%8;return{x:2.6+(c+(r===6?1.5:0))*
 function pos(n){return db.layout[n]||defPos(NAMES.indexOf(n))}
 function place(b){const p=pos(b.dataset.n);b.style.left=p.x+"%";b.style.top=p.y+"%"}
 function counts(){const c={P:0,A:0,L:0,E:0},m=rec().marks,names=activeNames();names.forEach(n=>m[n]&&c[m[n]]++);c.U=names.length-c.P-c.A-c.L-c.E;return c}
+function renderChecklist(){
+  const r=rec(),m=r.marks||{},check=checklistState(),names=activeNames();
+  [...$("setupList").querySelectorAll("[data-step]")].forEach(input=>{
+    input.checked=Boolean(check.steps[input.dataset.step]);
+  });
+  $("studentList").innerHTML=names.map(name=>{
+    const present=m[name]==="P";
+    return `<label class="check-item student-check${present?" is-present":""}">
+      <input type="checkbox" data-student="${name}"${present?" checked":""}>
+      ${name}
+    </label>`;
+  }).join("");
+  const checked=names.filter(name=>m[name]==="P").length;
+  $("checklistProgress").textContent=`${checked} of ${names.length} present`;
+  const complete=Object.values(check.steps).filter(Boolean).length;
+  check.steps.marked=names.length>0&&names.every(name=>Boolean(m[name]));
+  [...$("setupList").querySelectorAll('[data-step="marked"]')].forEach(input=>input.checked=check.steps.marked);
+  if(complete!==Object.values(check.steps).filter(Boolean).length){
+    persist("att");
+  }
+}
 function render(){
   const g=$("grid");
   if(!g.children.length)NAMES.forEach(n=>{const b=document.createElement("button");b.className="seat";b.dataset.n=n;
@@ -167,6 +221,7 @@ function render(){
   const c=counts();
   $("stats").innerHTML=Object.keys(ST).map(k=>`<div class="stat ${k}"><span>${ST[k]}</span><b>${c[k]}</b></div>`).join("")+`<div class="stat"><span>Unmarked</span><b>${c.U}</b></div>`;
   $("brushes").innerHTML=Object.keys(ST).map(k=>`<button class="brush ${k}" data-k="${k}" aria-pressed="${cur.brush===k}">${ST[k]}</button>`).join("");
+  renderChecklist();
 }
 $("grid").addEventListener("click",e=>{
   const b=e.target.closest(".seat");if(!b)return;
@@ -186,6 +241,28 @@ $("grid").addEventListener("click",e=>{
   const n=b.dataset.n,m=rec().marks;m[n]===cur.brush?delete m[n]:m[n]=cur.brush;render();persist("att");
 });
 $("brushes").addEventListener("click",e=>{const b=e.target.closest(".brush");if(b){cur.brush=b.dataset.k;render()}});
+$("checklistToggle").onclick=()=>{
+  const panel=$("checklist"),open=panel.hidden;
+  panel.hidden=!open;
+  $("checklistToggle").setAttribute("aria-expanded",String(open));
+  $("checklistToggle").textContent=open?"Close checklist":"Open checklist";
+  if(open)renderChecklist();
+};
+$("setupList").addEventListener("change",e=>{
+  const input=e.target.closest("[data-step]");
+  if(!input)return;
+  checklistState().steps[input.dataset.step]=input.checked;
+  persist("att");
+});
+$("studentList").addEventListener("change",e=>{
+  const input=e.target.closest("[data-student]");
+  if(!input)return;
+  const m=rec().marks;
+  checklistState().students[input.dataset.student]=input.checked;
+  if(input.checked)m[input.dataset.student]="P";
+  else if(m[input.dataset.student]==="P")delete m[input.dataset.student];
+  render();persist("att");
+});
 $("mode").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;cur.mode=b.dataset.m;
   document.body.classList.toggle("move",cur.mode==="move");
   document.body.classList.toggle("remove",cur.mode==="remove");
@@ -261,6 +338,7 @@ function makePNG(){
 let pngUrl;
 $("png").onclick=async()=>{
   const blob=await makePNG();if(!blob){toast("Couldn’t create the image");return}
+  checklistState().steps.exported=true;persist("att");renderChecklist();
   if(pngUrl)URL.revokeObjectURL(pngUrl);pngUrl=URL.createObjectURL(blob);
   const name=`attendance-${cur.date}.png`;$("prev").src=pngUrl;
   const a=$("dl");a.href=pngUrl;a.download=name;

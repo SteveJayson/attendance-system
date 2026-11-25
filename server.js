@@ -63,7 +63,22 @@ http.createServer((req, res) => {
       if (req.method === "PUT") {
         const marks = {};
         for (const [name, s] of Object.entries(data.marks || {})) if (STATUS.includes(s)) marks[name] = s;
-        db.records[date] = { section: String(data.section || "").slice(0, 100), marks };
+        const rawSteps = data.checklist?.steps && typeof data.checklist.steps === "object" ? data.checklist.steps : {};
+        const steps = {};
+        for (const key of ["roster", "marked", "exported"]) {
+          if (typeof rawSteps[key] === "boolean") steps[key] = rawSteps[key];
+        }
+        const students = {};
+        if (data.checklist?.students && typeof data.checklist.students === "object") {
+          for (const [name, checked] of Object.entries(data.checklist.students)) {
+            if (typeof checked === "boolean") students[String(name).slice(0, 100)] = checked;
+          }
+        }
+        const checklist = {
+          steps,
+          students
+        };
+        db.records[date] = { section: String(data.section || "").slice(0, 100), marks, checklist };
         save();
         return send(res, 200, { ok: true });
       }
