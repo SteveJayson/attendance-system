@@ -14,7 +14,10 @@ const FILES = {
 };
 
 let db;
-try { db = JSON.parse(fs.readFileSync(DB, "utf8")); } catch { db = { layout: {}, records: {} }; }
+try { db = JSON.parse(fs.readFileSync(DB, "utf8")); } catch { db = { layout: {}, removed: [], records: {} }; }
+db.layout = db.layout || {};
+db.removed = Array.isArray(db.removed) ? db.removed : [];
+db.records = db.records || {};
 const save = () => { fs.writeFileSync(DB + ".tmp", JSON.stringify(db)); fs.renameSync(DB + ".tmp", DB); };
 const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 
@@ -47,7 +50,8 @@ http.createServer((req, res) => {
       for (const [name, pos] of Object.entries(data.layout || {})) {
         if (pos && isFinite(pos.x) && isFinite(pos.y)) layout[name] = { x: +pos.x, y: +pos.y };
       }
-      db.layout = layout; save();
+      const removed = Array.isArray(data.removed) ? data.removed.filter(name => typeof name === "string") : [];
+      db.layout = layout; db.removed = removed; save();
       return send(res, 200, { ok: true });
     }
 

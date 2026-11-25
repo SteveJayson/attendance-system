@@ -49,11 +49,12 @@ display:flex;flex-direction:column;align-items:center;justify-content:center;gap
 .seat[data-s=E]{background:var(--E-bg);border-color:var(--E-line);color:var(--E-ink)}
 body:not(.move) .seat:active{transform:scale(.95)}
 body.move .seat{cursor:grab;touch-action:none;border-style:dashed}
+body.remove .seat{cursor:not-allowed;border-style:dashed}
 body.move .seat.drag{cursor:grabbing;z-index:5;box-shadow:0 8px 18px rgba(0,0,0,.3)}
 body.move .room{outline:3px dashed var(--E-line);outline-offset:-6px}
-body.move .markonly,body:not(.move) .moveonly{display:none!important}
+body.move .markonly,body.move .removeonly,body:not(.move) .moveonly,body.remove .markonly,body.remove .moveonly,body:not(.remove) .removeonly{display:none!important}
 .bar{position:sticky;bottom:0;margin:12px -14px 0;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:var(--paper);border-top:2px solid var(--grid);z-index:8}
-.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px}
 .seg button{border:2px solid var(--grid);background:var(--bg);border-radius:12px;padding:10px;font-weight:700}
 .seg button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .brushes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -97,11 +98,13 @@ dialog::backdrop{background:rgba(0,0,0,.5)}dialog img{width:100%;border-radius:8
     <div class="seg" id="mode">
       <button data-m="mark" aria-pressed="true">Mark attendance</button>
       <button data-m="move" aria-pressed="false">Move chairs</button>
+      <button data-m="remove" aria-pressed="false">Remove chairs</button>
     </div>
     <div class="brushes markonly" id="brushes"></div>
     <div class="row">
       <span class="hint markonly">Pick a status, then tap seats. Tap a marked seat again to clear it.</span>
       <span class="hint moveonly">Drag a chair to a new spot. The name moves with it. Positions save automatically.</span>
+      <span class="hint removeonly">Tap a chair once to confirm, then tap it again to remove it.</span>
       <button class="act markonly" id="allP">All present</button>
       <button class="act markonly" id="clear">Clear all</button>
       <button class="act moveonly" id="reset">Reset chairs</button>
@@ -125,14 +128,14 @@ const NAMES="AMORA,ARANTE,ATIS,AUSTRAL,BATAUSA,BENOCILLA,BORELA,CAAYA,CABALLERO,
 const ST={P:"Present",A:"Absent",L:"Late",E:"Excused"}, SW=10, SH=9.5, LS="attendance-v1";
 const $=id=>document.getElementById(id), pad=n=>String(n).padStart(2,"0"), t=new Date();
 const cur={date:`${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`,brush:"P",mode:"mark"};
-let db={layout:{},records:{}}, online=false;
+let db={layout:{},removed:[],records:{}}, online=false;
 
 // ---- storage: server database if running via server.js, otherwise this browser ----
 function localLoad(){try{return JSON.parse(localStorage.getItem(LS))||db}catch(e){return db}}
 async function boot(){
   try{const r=await fetch("/api/state");if(r.ok){db=await r.json();online=true}}catch(e){}
   if(!online)db=localLoad();
-  db.layout=db.layout||{};db.records=db.records||{};
+  db.layout=db.layout||{};db.removed=db.removed||[];db.records=db.records||{};
   $("where").textContent=online?"Saved to the local database (attendance-db.json)":"Saved in this browser";
 }
 function rec(){return db.records[cur.date]||(db.records[cur.date]={section:"",marks:{}})}
@@ -140,21 +143,23 @@ let tt;function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on"
 function persist(what){
   try{localStorage.setItem(LS,JSON.stringify(db))}catch(e){toast("Couldn’t save on this device");return}
   if(online){
-    const [u,b]=what==="layout"?["/api/layout",{layout:db.layout}]:["/api/attendance/"+cur.date,rec()];
+    const [u,b]=what==="layout"?["/api/layout",{layout:db.layout,removed:db.removed}]:["/api/attendance/"+cur.date,rec()];
     fetch(u,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).catch(()=>toast("Server not reachable"));
   }
   toast("Saved");
 }
 
 // ---- seats ----
+function activeNames(){return NAMES.filter(n=>!db.removed.includes(n))}
 function defPos(i){const r=Math.floor(i/8),c=i%8;return{x:2.6+(c+(r===6?1.5:0))*12.1,y:15+r*12.4}}
 function pos(n){return db.layout[n]||defPos(NAMES.indexOf(n))}
 function place(b){const p=pos(b.dataset.n);b.style.left=p.x+"%";b.style.top=p.y+"%"}
-function counts(){const c={P:0,A:0,L:0,E:0},m=rec().marks;NAMES.forEach(n=>m[n]&&c[m[n]]++);c.U=NAMES.length-c.P-c.A-c.L-c.E;return c}
+function counts(){const c={P:0,A:0,L:0,E:0},m=rec().marks,names=activeNames();names.forEach(n=>m[n]&&c[m[n]]++);c.U=names.length-c.P-c.A-c.L-c.E;return c}
 function render(){
   const g=$("grid");
   if(!g.children.length)NAMES.forEach(n=>{const b=document.createElement("button");b.className="seat";b.dataset.n=n;
     b.innerHTML=`<span class="nm">${n}</span><span class="st"></span>`;g.appendChild(b)});
+  [...g.children].forEach(b=>{b.hidden=db.removed.includes(b.dataset.n)});
   const m=rec().marks;
   [...g.children].forEach(b=>{const s=m[b.dataset.n];place(b);
     s?b.dataset.s=s:delete b.dataset.s;b.querySelector(".st").textContent=s?ST[s]:"";
@@ -164,12 +169,26 @@ function render(){
   $("brushes").innerHTML=Object.keys(ST).map(k=>`<button class="brush ${k}" data-k="${k}" aria-pressed="${cur.brush===k}">${ST[k]}</button>`).join("");
 }
 $("grid").addEventListener("click",e=>{
-  if(cur.mode!=="mark")return;const b=e.target.closest(".seat");if(!b)return;
+  const b=e.target.closest(".seat");if(!b)return;
+  if(cur.mode==="remove"){
+    if(b.dataset.confirm==="1"){
+      db.removed=[...db.removed,b.dataset.n];delete db.layout[b.dataset.n];
+      delete b.dataset.confirm;b.querySelector(".st").textContent="";
+      render();persist("layout");return;
+    }
+    [...$("grid").children].forEach(x=>{delete x.dataset.confirm;if(!db.removed.includes(x.dataset.n))x.querySelector(".st").textContent=(rec().marks[x.dataset.n]?ST[rec().marks[x.dataset.n]]:"")});
+    b.dataset.confirm="1";b.querySelector(".st").textContent="Tap again";
+    clearTimeout(+b.dataset.confirmTimer||0);
+    b.dataset.confirmTimer=setTimeout(()=>{delete b.dataset.confirm;b.querySelector(".st").textContent=rec().marks[b.dataset.n]?ST[rec().marks[b.dataset.n]]:""},3000);
+    return;
+  }
+  if(cur.mode!=="mark")return;
   const n=b.dataset.n,m=rec().marks;m[n]===cur.brush?delete m[n]:m[n]=cur.brush;render();persist("att");
 });
 $("brushes").addEventListener("click",e=>{const b=e.target.closest(".brush");if(b){cur.brush=b.dataset.k;render()}});
 $("mode").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;cur.mode=b.dataset.m;
   document.body.classList.toggle("move",cur.mode==="move");
+  document.body.classList.toggle("remove",cur.mode==="remove");
   [...$("mode").children].forEach(x=>x.setAttribute("aria-pressed",x===b))});
 
 // ---- dragging chairs ----
@@ -197,9 +216,9 @@ function confirmTap(btn,label,fn){
   btn.dataset.label=btn.textContent;btn.textContent=label;
   btn.dataset.arm=setTimeout(()=>{btn.textContent=btn.dataset.label;delete btn.dataset.arm},3000);
 }
-$("allP").onclick=()=>{const m=rec().marks;NAMES.forEach(n=>{if(!m[n])m[n]="P"});render();persist("att")};
+$("allP").onclick=()=>{const m=rec().marks;activeNames().forEach(n=>{if(!m[n])m[n]="P"});render();persist("att")};
 $("clear").onclick=e=>confirmTap(e.target,"Tap again to clear",()=>{rec().marks={};render();persist("att")});
-$("reset").onclick=e=>confirmTap(e.target,"Tap again to reset",()=>{db.layout={};render();persist("layout")});
+$("reset").onclick=e=>confirmTap(e.target,"Tap again to reset",()=>{db.layout={};db.removed=[];render();persist("layout")});
 $("date").onchange=e=>{if(!e.target.value)return;cur.date=e.target.value;$("section").value=rec().section;render()};
 $("section").oninput=e=>{rec().section=e.target.value;persist("att")};
 $("close").onclick=()=>$("dlg").close();
@@ -211,7 +230,7 @@ function wrap(x,text,max){const out=[];let l="";for(const w of text.split(" ")){
 function makePNG(){
   const W=1600,top=190,c=counts(),m=rec().marks;
   const probe=document.createElement("canvas").getContext("2d");probe.font="28px "+FONT;
-  const blocks=[["Absent","A"],["Late","L"],["Excused","E"]].map(([l,k])=>{const a=NAMES.filter(n=>m[n]===k);return a.length?wrap(probe,`${l} (${a.length}): ${a.join(", ")}`,W-100):null}).filter(Boolean);
+  const blocks=[["Absent","A"],["Late","L"],["Excused","E"]].map(([l,k])=>{const a=activeNames().filter(n=>m[n]===k);return a.length?wrap(probe,`${l} (${a.length}): ${a.join(", ")}`,W-100):null}).filter(Boolean);
   const foot=blocks.length?blocks.reduce((s,b)=>s+b.length*40,0)+50:30;
   const cv=document.createElement("canvas");cv.width=W;cv.height=top+W+foot;
   const x=cv.getContext("2d");
@@ -227,7 +246,7 @@ function makePNG(){
   x.strokeStyle="#3f5a66";x.lineWidth=14;x.strokeRect(7,7,W-14,W-14);
   x.fillStyle="#d9ecf1";x.strokeStyle="#5f98a8";x.lineWidth=5;x.beginPath();x.rect(W*.2,W*.025,W*.6,W*.07);x.fill();x.stroke();
   x.fillStyle="#10303a";x.font="800 44px "+FONT;x.textAlign="center";x.fillText("WHITEBOARD",W/2,W*.025+W*.07/2+15);
-  NAMES.forEach(n=>{
+  activeNames().forEach(n=>{
     const p=pos(n),s=m[n]||"U",sx=p.x/100*W,sy=p.y/100*W,sw=W*SW/100,sh=W*SH/100;
     x.fillStyle=COL[s][0];x.strokeStyle=COL[s][1];x.lineWidth=5;x.beginPath();x.roundRect(sx,sy,sw,sh,[22,22,12,12]);x.fill();x.stroke();
     x.fillStyle=COL[s][2];x.globalAlpha=.25;x.fillRect(sx+sw*.22,sy+sh-14,sw*.56,7);x.globalAlpha=1;
