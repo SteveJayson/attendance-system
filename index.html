@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3f5a66">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Classroom Attendance</title>
 <style>
 :root{--bg:#e9f1f3;--paper:#fbfdfd;--grid:#cddde2;--ink:#10303a;--muted:#587681;--wall:#3f5a66;--seat:#a9d0db;--seat-line:#5f98a8;--board:#d9ecf1;
@@ -24,15 +28,18 @@ input{background:var(--paper);border:1.5px solid var(--grid);border-radius:10px;
 .stat{background:var(--paper);border:1.5px solid var(--grid);border-radius:12px;padding:8px 10px;display:flex;justify-content:space-between;align-items:baseline;gap:6px}
 .stat b{font-size:1.4rem;font-variant-numeric:tabular-nums}.stat span{font-size:.8rem;color:var(--muted)}
 .stat.P{border-color:var(--P-line)}.stat.A{border-color:var(--A-line)}.stat.L{border-color:var(--L-line)}.stat.E{border-color:var(--E-line)}
-.scroller{overflow-x:auto;border-radius:6px}
-.room{container-type:inline-size;position:relative;min-width:780px;aspect-ratio:1;background:var(--paper);border:6px solid var(--wall);
+[hidden]{display:none!important}
+.scroller{overflow-x:auto;border-radius:6px;overscroll-behavior-x:contain}
+.zoom{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-bottom:6px;font-size:.8rem;color:var(--muted)}
+.zoom button{border:1.5px solid var(--grid);background:var(--paper);border-radius:10px;min-width:44px;min-height:38px;font-weight:700;touch-action:manipulation}
+.room{container-type:inline-size;position:relative;width:100%;aspect-ratio:1;background:var(--paper);border:6px solid var(--wall);
 background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:28px 28px}
 .board{position:absolute;left:20%;top:2.5%;width:60%;height:7%;display:flex;align-items:center;justify-content:center;font-weight:800;letter-spacing:.04em;background:var(--board);border:3px solid var(--seat-line)}
 .door{position:absolute;top:-6px;right:3%;width:46px;height:6px;background:var(--bg);border:solid var(--wall);border-width:0 3px}
 .back{position:absolute;bottom:.6%;width:100%;text-align:center;font-size:.8rem;font-weight:700;color:var(--muted)}
 #grid{position:absolute;inset:0}
 .seat{position:absolute;width:10%;height:9.5%;padding:4px 2px 10px;border:2px solid var(--seat-line);background:var(--seat);color:var(--ink);border-radius:14px 14px 8px 8px;
-display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;user-select:none;-webkit-tap-highlight-color:transparent}
+display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .seat::after{content:"";position:absolute;left:22%;right:22%;bottom:3px;height:4px;border-radius:3px;background:currentColor;opacity:.25}
 .nm{font-weight:800;font-size:clamp(8px,1.15cqw,15px);line-height:1.1;overflow-wrap:anywhere}
 .st{font-size:clamp(8px,.95cqw,12px);font-weight:700;min-height:1em}
@@ -45,7 +52,7 @@ body.move .seat{cursor:grab;touch-action:none;border-style:dashed}
 body.move .seat.drag{cursor:grabbing;z-index:5;box-shadow:0 8px 18px rgba(0,0,0,.3)}
 body.move .room{outline:3px dashed var(--E-line);outline-offset:-6px}
 body.move .markonly,body:not(.move) .moveonly{display:none!important}
-.bar{position:sticky;bottom:0;margin:12px -14px 0;padding:10px 14px;background:var(--paper);border-top:2px solid var(--grid);z-index:8}
+.bar{position:sticky;bottom:0;margin:12px -14px 0;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:var(--paper);border-top:2px solid var(--grid);z-index:8}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
 .seg button{border:2px solid var(--grid);background:var(--bg);border-radius:12px;padding:10px;font-weight:700}
 .seg button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
@@ -64,20 +71,22 @@ dialog{border:2px solid var(--grid);border-radius:14px;background:var(--paper);c
 dialog::backdrop{background:rgba(0,0,0,.5)}dialog img{width:100%;border-radius:8px;border:1px solid var(--grid)}
 .toast{position:fixed;left:50%;bottom:170px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:7px 14px;border-radius:20px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
 .toast.on{opacity:1}
-@media (max-width:720px){.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:6px 8px}input{min-width:0;flex:1}.fields,label{width:100%}}
+@media (max-width:720px){.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:6px 8px}input{min-width:0;flex:1}.fields,label{width:100%}
+.hint{display:none}.bar{margin-top:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px))}.seg button{padding:8px}.brush{min-height:44px;padding:8px 2px}.act{padding:8px 10px;font-size:.85rem}.row{margin-top:6px}.toast{bottom:150px}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div><h1>Classroom attendance</h1><div class="where" id="where"></div></div>
+    <div><h1>Classroom attendance</h1><div class="where"><span id="where"></span> <button class="act" id="inst" hidden style="padding:4px 10px;font-size:.78rem">Install app</button></div></div>
     <div class="fields">
       <label>Class / subject<input id="section" placeholder="e.g. Grade 10 – Science"></label>
       <label>Date<input id="date" type="date"></label>
     </div>
   </header>
   <div class="stats" id="stats"></div>
-  <div class="scroller">
+  <div class="zoom"><span>Zoom</span><button id="zo" aria-label="Zoom out">−</button><button id="zf">Fit</button><button id="zi" aria-label="Zoom in">+</button></div>
+  <div class="scroller" id="scroller">
     <div class="room" id="room">
       <div class="board">WHITEBOARD</div><div class="door"></div>
       <div id="grid"></div>
@@ -104,6 +113,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}dialog img{width:100%;border-radius:8
   <img id="prev" alt="Attendance chart preview">
   <div class="row" style="justify-content:flex-end">
     <span class="hint">If the download doesn’t start, press and hold or right-click the image to save it.</span>
+    <button class="act" id="share" hidden>Share / Save</button>
     <a class="act main" id="dl" download>Download PNG</a>
     <button class="act" id="close">Close</button>
   </div>
@@ -171,11 +181,15 @@ $("grid").addEventListener("pointerdown",e=>{
   b.setPointerCapture(e.pointerId);b.classList.add("drag");e.preventDefault();
 });
 $("grid").addEventListener("pointermove",e=>{
-  if(!drag)return;const{b,dx,dy,rr}=drag,cl=(v,mx)=>Math.max(0,Math.min(mx,Math.round(v*2)/2));
+  if(!drag)return;const{b,dx,dy}=drag,cl=(v,mx)=>Math.max(0,Math.min(mx,Math.round(v*2)/2));
+  const sc=$("scroller"),sr=sc.getBoundingClientRect(),bh=document.querySelector(".bar").offsetHeight;
+  if(e.clientX>sr.right-40)sc.scrollLeft+=14;else if(e.clientX<sr.left+40)sc.scrollLeft-=14;
+  if(e.clientY>innerHeight-bh-30)scrollBy(0,14);else if(e.clientY<50)scrollBy(0,-14);
+  const rr=$("room").getBoundingClientRect();
   db.layout[b.dataset.n]={x:cl((e.clientX-dx-rr.left)/rr.width*100,100-SW),y:cl((e.clientY-dy-rr.top)/rr.height*100,100-SH)};place(b);
 });
 const endDrag=()=>{if(!drag)return;drag.b.classList.remove("drag");drag=null;persist("layout")};
-$("grid").addEventListener("pointerup",endDrag);$("grid").addEventListener("pointercancel",endDrag);
+$("grid").addEventListener("pointerup",endDrag);$("grid").addEventListener("pointercancel",endDrag);$("grid").addEventListener("contextmenu",e=>e.preventDefault());
 
 // ---- buttons ----
 function confirmTap(btn,label,fn){
@@ -223,14 +237,31 @@ function makePNG(){
   });
   x.restore();x.textAlign="left";x.fillStyle="#10303a";x.font="28px "+FONT;
   let y=top+W+42;blocks.forEach(b=>b.forEach(l=>{x.fillText(l,50,y);y+=40}));
-  return cv.toDataURL("image/png");
+  return new Promise(r=>cv.toBlob(r,"image/png"));
 }
-$("png").onclick=()=>{
-  const url=makePNG();$("prev").src=url;
-  const a=$("dl");a.href=url;a.download=`attendance-${cur.date}.png`;$("dlg").showModal();
+let pngUrl;
+$("png").onclick=async()=>{
+  const blob=await makePNG();if(!blob){toast("Couldn’t create the image");return}
+  if(pngUrl)URL.revokeObjectURL(pngUrl);pngUrl=URL.createObjectURL(blob);
+  const name=`attendance-${cur.date}.png`;$("prev").src=pngUrl;
+  const a=$("dl");a.href=pngUrl;a.download=name;
+  const f=new File([blob],name,{type:"image/png"});
+  $("share").hidden=!(navigator.canShare&&navigator.canShare({files:[f]}));
+  $("share").onclick=()=>navigator.share({files:[f],title:name}).catch(()=>{});
+  $("dlg").showModal();
 };
 
-boot().then(()=>{$("date").value=cur.date;$("section").value=rec().section;render()});
+boot().then(()=>{$("date").value=cur.date;$("section").value=rec().section;render();fit()});
+
+// ---- zoom (phones start at a readable size and scroll sideways) ----
+function fit(){$("room").style.width=$("scroller").clientWidth>=780?"100%":"780px"}
+const zoom=f=>{$("room").style.width=Math.max(360,Math.min(1600,$("room").offsetWidth*f))+"px"};
+$("zi").onclick=()=>zoom(1.25);$("zo").onclick=()=>zoom(.8);$("zf").onclick=()=>{$("room").style.width="100%"};
+
+// ---- install as an app + offline ----
+let ip;addEventListener("beforeinstallprompt",e=>{e.preventDefault();ip=e;$("inst").hidden=false});
+$("inst").onclick=async()=>{if(!ip)return;ip.prompt();await ip.userChoice;ip=null;$("inst").hidden=true};
+if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
 </body>
 </html>
